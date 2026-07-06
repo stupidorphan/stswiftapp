@@ -1,32 +1,18 @@
-//
-//  stswiftappApp.swift
-//  stswiftapp
-//
-//  Created by Leah on 7/4/26.
-//
-
 import SwiftUI
 import SwiftData
+import Observation
 
 @main
 struct stswiftappApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    @State private var appViewModel = STAppViewModel()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(appViewModel)
+                .onAppear {
+                    appViewModel.loadConfiguration()
+                }
         }
-        .modelContainer(sharedModelContainer)
     }
 }
