@@ -9,6 +9,12 @@ final class STAppViewModel {
     var errorMessage: String?
     var selectedTab: STTab = .chats
 
+    /// Active persona name — the display name of the currently selected persona.
+    /// Falls back to the server user handle, then "User".
+    var activePersonaName: String = "User"
+    /// Active persona description — injected into the system prompt.
+    var activePersonaDescription: String = ""
+
     // Navigation state
     var navigationPath = NavigationPath()
 
@@ -67,6 +73,7 @@ final class STAppViewModel {
                 }
                 // Load settings immediately on connect
                 await SettingsStore.shared.load()
+                await loadActivePersona()
                 if SettingsStore.shared.chatCompletionSource != "custom" {
                     await SettingsStore.shared.fetchModels()
                 }
@@ -84,6 +91,28 @@ final class STAppViewModel {
         serverConfig = config
         STServerConfigManager.shared.save(config)
         connect()
+    }
+
+    /// Load the currently selected persona from settings.
+    func loadActivePersona() async {
+        let settingsJSON = SettingsStore.shared.settingsJSON
+        let powerUser = settingsJSON["power_user"] as? [String: Any] ?? [:]
+        let personasDict = powerUser["personas"] as? [String: Any] ?? [:]
+        let descriptionsDict = powerUser["persona_descriptions"] as? [String: Any] ?? [:]
+
+        let avatarId = settingsJSON["user_avatar"] as? String ?? ""
+        if !avatarId.isEmpty, let name = personasDict[avatarId] as? String {
+            activePersonaName = name
+        } else {
+            // Fall back to server handle or "User"
+            activePersonaName = serverConfig.userHandle.isEmpty ? "User" : serverConfig.userHandle
+        }
+
+        if !avatarId.isEmpty, let desc = descriptionsDict[avatarId] as? [String: Any] {
+            activePersonaDescription = desc["description"] as? String ?? ""
+        } else {
+            activePersonaDescription = ""
+        }
     }
 
     func disconnect() {

@@ -61,9 +61,10 @@ struct STAuthAsyncImage: View {
             return
         }
 
-        // Try thumbnail, fall back to character avatar
+        // Try thumbnail, fall back to character avatar, then user avatars
         let paths = [
             "/thumbnail/avatar/\(avatar)?type=avatar",
+            "/thumbnail?type=persona&file=\(avatar)",
             "/characters/\(avatar)",
             "/User%20Avatars/\(avatar)"
         ]

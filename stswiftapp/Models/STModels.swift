@@ -394,10 +394,31 @@ struct STGroup: Codable, Identifiable, Hashable {
 // MARK: - Persona Model
 
 struct STPersona: Codable, Identifiable, Hashable {
+    /// Avatar filename — this is the primary key in SillyTavern's persona system.
+    /// Maps to the key in `power_user.personas` and `power_user.persona_descriptions`.
+    var avatarId: String
+    /// Display name shown in the UI. Maps to the value in `power_user.personas[avatarId]`.
     var name: String
+    /// Persona description injected into the prompt.
     var description: String
-    var avatar: String?
-    var id: String { name }
+    /// Optional display-only title.
+    var title: String
+    /// Where the description is inserted in the prompt
+    /// (0=in prompt, 2=top AN, 3=bottom AN, 4=at depth, 9=none).
+    var position: Int
+    /// Chat depth at which the description is injected (for position=4).
+    var depth: Int
+    /// Role for the description message (0=system, 1=user, 2=assistant).
+    var role: Int
+    /// Attached lorebook/world info name.
+    var lorebook: String
+    /// Whether this persona is the global default.
+    var isDefault: Bool
+
+    var id: String { avatarId }
+
+    func hash(into hasher: inout Hasher) { hasher.combine(avatarId) }
+    static func == (lhs: STPersona, rhs: STPersona) -> Bool { lhs.avatarId == rhs.avatarId }
 }
 
 // MARK: - World Info / Lorebook Models

@@ -223,7 +223,7 @@ struct ChatView: View {
                             message: STChatMessage(name: character.name, isUser: false, isSystem: false, sendDate: "", mes: viewModel.streamedText, extra: [:], swipes: nil, swipeID: nil),
                             isLastOutgoing: false,
                             characterName: character.name,
-                            userName: appViewModel.serverConfig.userHandle
+                            userName: appViewModel.activePersonaName
                         ).id("streaming")
                     }
                 }.padding(.top, 8)
@@ -269,7 +269,10 @@ struct ChatView: View {
                 }
             }
         }
-        .task { await viewModel.loadMessages() }
+        .task {
+            viewModel.personaDescription = appViewModel.activePersonaDescription
+            await viewModel.loadMessages()
+        }
         .sheet(isPresented: $viewModel.showConversationPicker) {
             ConversationPickerSheet(viewModel: viewModel)
         }
@@ -281,7 +284,8 @@ struct ChatView: View {
     private func sendMessage() {
         let text = inputText.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
-        inputText = ""; Task { await viewModel.sendMessage(text, characterName: character.name) }
+        let userName = appViewModel.activePersonaName
+        inputText = ""; Task { await viewModel.sendMessage(text, characterName: character.name, userName: userName) }
     }
 
     @ViewBuilder
@@ -289,7 +293,7 @@ struct ChatView: View {
         MessageBubbleView(
             message: message, isLastOutgoing: isLastOutgoing,
             characterName: character.name,
-            userName: appViewModel.serverConfig.userHandle,
+            userName: appViewModel.activePersonaName,
             onCopy: { viewModel.copyMessage(message) },
             onEdit: { viewModel.beginEditing(message) },
             onDelete: { viewModel.deleteMessage(message) },
@@ -332,6 +336,9 @@ final class ChatViewModel {
     var conversations: [STConversationInfo] = []
     var showConversationPicker = false
     private let client = STAPIClient.shared; private var streamingTask: Task<Void, Never>?
+
+    /// Persona description injected into the system prompt.
+    var personaDescription: String = ""
 
     init(character: STCharacter, chat: STChat?) { self.character = character; self.chat = chat }
 
@@ -643,8 +650,11 @@ final class ChatViewModel {
     }
 
     func deleteMessage(_ message: STChatMessage) {
-        messages.removeAll { $0.id == message.id }
-        if editingMessageID == message.id { editingMessageID = nil }
+        guard let index = messages.firstIndex(where: { $0.id == message.id }) else { return }
+        let deletedIDs = Set(messages[index...].map(\.id))
+        messages.removeSubrange(index...)
+        if let editingMessageID, deletedIDs.contains(editingMessageID) { self.editingMessageID = nil }
+        Task { await save() }
     }
 
     func beginEditing(_ message: STChatMessage) {
@@ -726,6 +736,10 @@ final class ChatViewModel {
         if !character.scenario.isEmpty { p.append("Scenario: \(character.scenario)") }
         if !character.systemPrompt.isEmpty { p.append(character.systemPrompt) }
         if !character.postHistoryInstructions.isEmpty { p.append(character.postHistoryInstructions) }
+        // Inject persona description at the end of the system prompt (position=0, IN_PROMPT)
+        if !personaDescription.isEmpty {
+            p.append("[\(character.name)'s description: \(personaDescription)]")
+        }
         return p.joined(separator: "\n")
     }
 }

@@ -244,6 +244,48 @@ final class STAPIClient: NSObject, @unchecked Sendable {
         }
     }
 
+    /// POST multipart form data (for avatar / file uploads).
+    func postMultipart(_ path: String, formData: [String: Data], fileName: String = "avatar.png") async throws -> Data {
+        guard !serverURL.isEmpty else { throw STAPIError.notConfigured }
+        guard let url = URL(string: "\(serverURL)\(path)") else {
+            throw STAPIError.invalidURL
+        }
+
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var body = Data()
+
+        for (fieldName, fieldData) in formData {
+            body.append("--\(boundary)\r\n".data(using: .utf8)!)
+            body.append("Content-Disposition: form-data; name=\"\(fieldName)\"; filename=\"\(fileName)\"\r\n".data(using: .utf8)!)
+            body.append("Content-Type: image/png\r\n\r\n".data(using: .utf8)!)
+            body.append(fieldData)
+            body.append("\r\n".data(using: .utf8)!)
+        }
+        body.append("--\(boundary)--\r\n".data(using: .utf8)!)
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        req = authHandler.applyAuth(to: req)
+        req.httpBody = body
+
+        let (data, response) = try await urlSession.data(for: req)
+        guard let httpResp = response as? HTTPURLResponse else {
+            throw STAPIError.networkError(NSError(domain: "", code: -1))
+        }
+        logger.debug("POST multipart \(path) -> \(httpResp.statusCode)")
+
+        switch httpResp.statusCode {
+        case 200...299: return data
+        case 401: throw STAPIError.unauthorized
+        case 403:
+            try? await fetchCSRFToken()
+            throw STAPIError.forbidden
+        case 404: throw STAPIError.notFound
+        default: throw STAPIError.serverError(httpResp.statusCode)
+        }
+    }
+
     // MARK: - Multipart Upload
 
     func uploadMultipart(
